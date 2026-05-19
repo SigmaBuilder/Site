@@ -17,5 +17,8 @@
   "bugs": {
     "url": "https://github.com/SigmaBuilder/Site/issues"
   },
-  "homepage": "https://github.com/SigmaBuilder/Site#readme"
+  "homepage": "https://github.com/SigmaBuilder/Site#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
 }
