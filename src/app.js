@@ -47,6 +47,8 @@ const handlePageRequest = async (req, res, next) => {
 
     const response = await fetch(endpoint);
 
+    console.log(response.status, await response.clone().text()); // Log para depuración
+
     if (!response.ok) {
       try {
         const errorData = await response.clone().json();
@@ -59,35 +61,43 @@ const handlePageRequest = async (req, res, next) => {
         try {
           const errorData = await response.clone().json();
           const isPageError = errorData.message === "Page not published";
-          const isSiteError = errorData.message === "Site not published" || errorData.message === "Site not found or not public";
-          
+          const isSiteError =
+            errorData.message === "Site not published" ||
+            errorData.message === "Site not found or not public";
+
           if (isPageError || isSiteError) {
-            const errorTitle = isPageError ? "Página no publicada aún" : "Sitio no publicado aún";
-            const errorDesc = isPageError 
+            const errorTitle = isPageError
+              ? "Página no publicada aún"
+              : "Sitio no publicado aún";
+            const errorDesc = isPageError
               ? "Esta página se encuentra actualmente en estado de borrador y no está disponible al público general."
               : "Este sitio se encuentra actualmente en estado de borrador y no está disponible al público general.";
 
-            return res.status(403).send(
-              renderErrorPage(
-                "No Publicado",
-                errorTitle,
-                errorDesc,
-                faviconUrl
-              )
-            );
+            return res
+              .status(403)
+              .send(
+                renderErrorPage(
+                  "No Publicado",
+                  errorTitle,
+                  errorDesc,
+                  faviconUrl,
+                ),
+              );
           }
         } catch (e) {
           // ignore parsing errors and proceed with normal 404 page
         }
 
-        return res.status(404).send(
-          renderErrorPage(
-            404,
-            "Página no encontrada",
-            "La página o el sitio que estás buscando no existe o ha sido movido.",
-            faviconUrl
-          )
-        );
+        return res
+          .status(404)
+          .send(
+            renderErrorPage(
+              404,
+              "Página no encontrada",
+              "La página o el sitio que estás buscando no existe o ha sido movido.",
+              faviconUrl,
+            ),
+          );
       }
       throw new Error(`Error en el servidor: ${response.status}`);
     }
@@ -95,31 +105,40 @@ const handlePageRequest = async (req, res, next) => {
     const { data } = await response.json();
 
     // Si la página concreta no está publicada (y no es preview)
-    const isPreview = req.query.preview === 'true';
-    if (!isPreview && data.page.status !== 'published' && data.page.status !== 'active') {
+    const isPreview = req.query.preview === "true";
+    if (
+      !isPreview &&
+      data.page.status !== "published" &&
+      data.page.status !== "active" &&
+      data.page.status !== "public"
+    ) {
       const pageFavicon = data.site.content?.favicon_url || null;
-      return res.status(403).send(
-        renderErrorPage(
-          "No Publicado",
-          "Página no publicada aún",
-          "Esta página se encuentra actualmente en estado de borrador y no está disponible al público general.",
-          pageFavicon
-        )
-      );
+      return res
+        .status(403)
+        .send(
+          renderErrorPage(
+            "No Publicado",
+            "Página no publicada aún",
+            "Esta página se encuentra actualmente en estado de borrador y no está disponible al público general.",
+            pageFavicon,
+          ),
+        );
     }
 
     const htmlContent = renderPage(data.page, data.site);
     res.send(htmlContent);
   } catch (error) {
     console.error("Error fetching page data:", error);
-    res.status(500).send(
-      renderErrorPage(
-        500,
-        "Error interno del servidor",
-        "Ha ocurrido un problema inesperado al cargar el sitio. Por favor, inténtelo de nuevo más tarde.",
-        faviconUrl
-      )
-    );
+    res
+      .status(500)
+      .send(
+        renderErrorPage(
+          500,
+          "Error interno del servidor",
+          "Ha ocurrido un problema inesperado al cargar el sitio. Por favor, inténtelo de nuevo más tarde.",
+          faviconUrl,
+        ),
+      );
   }
 };
 
@@ -133,25 +152,29 @@ app.get("/:slug/:pageSlug", handlePageRequest);
 
 // Manejo de rutas no encontradas (404)
 app.use((req, res) => {
-  res.status(404).send(
-    renderErrorPage(
-      404,
-      "Página no encontrada",
-      "La ruta solicitada no es válida o no existe."
-    )
-  );
+  res
+    .status(404)
+    .send(
+      renderErrorPage(
+        404,
+        "Página no encontrada",
+        "La ruta solicitada no es válida o no existe.",
+      ),
+    );
 });
 
 // Manejo de errores globales (500)
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
-  res.status(500).send(
-    renderErrorPage(
-      500,
-      "Error interno del servidor",
-      "Ha ocurrido un error inesperado al procesar la solicitud."
-    )
-  );
+  res
+    .status(500)
+    .send(
+      renderErrorPage(
+        500,
+        "Error interno del servidor",
+        "Ha ocurrido un error inesperado al procesar la solicitud.",
+      ),
+    );
 });
 
 app.listen(port, () => {
