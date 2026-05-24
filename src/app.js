@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const { renderErrorPage } = require("./utils/errorTemplate");
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -35,8 +36,9 @@ const renderPage = (pageData, siteData) => {
 };
 
 // Función manejadora de la ruta
-const handlePageRequest = async (req, res) => {
+const handlePageRequest = async (req, res, next) => {
   const { slug, pageSlug } = req.params;
+  let faviconUrl = null;
 
   try {
     const endpoint = pageSlug
@@ -46,25 +48,111 @@ const handlePageRequest = async (req, res) => {
     const response = await fetch(endpoint);
 
     if (!response.ok) {
+      try {
+        const errorData = await response.clone().json();
+        faviconUrl = errorData.favicon_url || null;
+      } catch (e) {
+        // ignore
+      }
+
       if (response.status === 404) {
-        return res.status(404).send("<h1>404 - Página no encontrada</h1>");
+        try {
+          const errorData = await response.clone().json();
+          const isPageError = errorData.message === "Page not published";
+          const isSiteError = errorData.message === "Site not published" || errorData.message === "Site not found or not public";
+          
+          if (isPageError || isSiteError) {
+            const errorTitle = isPageError ? "Página no publicada aún" : "Sitio no publicado aún";
+            const errorDesc = isPageError 
+              ? "Esta página se encuentra actualmente en estado de borrador y no está disponible al público general."
+              : "Este sitio se encuentra actualmente en estado de borrador y no está disponible al público general.";
+
+            return res.status(403).send(
+              renderErrorPage(
+                "No Publicado",
+                errorTitle,
+                errorDesc,
+                faviconUrl
+              )
+            );
+          }
+        } catch (e) {
+          // ignore parsing errors and proceed with normal 404 page
+        }
+
+        return res.status(404).send(
+          renderErrorPage(
+            404,
+            "Página no encontrada",
+            "La página o el sitio que estás buscando no existe o ha sido movido.",
+            faviconUrl
+          )
+        );
       }
       throw new Error(`Error en el servidor: ${response.status}`);
     }
 
     const { data } = await response.json();
 
+    // Si la página concreta no está publicada (y no es preview)
+    const isPreview = req.query.preview === 'true';
+    if (!isPreview && data.page.status !== 'published' && data.page.status !== 'active') {
+      const pageFavicon = data.site.content?.favicon_url || null;
+      return res.status(403).send(
+        renderErrorPage(
+          "No Publicado",
+          "Página no publicada aún",
+          "Esta página se encuentra actualmente en estado de borrador y no está disponible al público general.",
+          pageFavicon
+        )
+      );
+    }
+
     const htmlContent = renderPage(data.page, data.site);
     res.send(htmlContent);
   } catch (error) {
     console.error("Error fetching page data:", error);
-    res.status(500).send("<h1>500 - Error interno del servidor</h1>");
+    res.status(500).send(
+      renderErrorPage(
+        500,
+        "Error interno del servidor",
+        "Ha ocurrido un problema inesperado al cargar el sitio. Por favor, inténtelo de nuevo más tarde.",
+        faviconUrl
+      )
+    );
   }
 };
 
 // Rutas para gestionar sitios y páginas (Express 5 syntax safe)
+app.get("/", (req, res) => {
+  const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+  res.redirect(clientUrl);
+});
 app.get("/:slug", handlePageRequest);
 app.get("/:slug/:pageSlug", handlePageRequest);
+
+// Manejo de rutas no encontradas (404)
+app.use((req, res) => {
+  res.status(404).send(
+    renderErrorPage(
+      404,
+      "Página no encontrada",
+      "La ruta solicitada no es válida o no existe."
+    )
+  );
+});
+
+// Manejo de errores globales (500)
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  res.status(500).send(
+    renderErrorPage(
+      500,
+      "Error interno del servidor",
+      "Ha ocurrido un error inesperado al procesar la solicitud."
+    )
+  );
+});
 
 app.listen(port, () => {
   console.log(`Site App listening on port ${port}`);
