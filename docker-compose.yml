@@ -1,0 +1,20 @@
+services:
+  # Frontend Public Service (Express engine)
+  site:
+    image: ghcr.io/sigmabuilder/site:latest
+    container_name: sigmabuilder_site
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      # Connects to backend using Docker internal DNS resolver on the external network
+      - SERVER_API_URL=http://server:3000/api/v1
+      # Redirect URL to the editor, defaults to localhost:3001 if not overridden by Host env
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:3001}
+    networks:
+      - sigmanet
+
+networks:
+  sigmanet:
+    external: true
