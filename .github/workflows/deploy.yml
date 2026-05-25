@@ -49,14 +49,24 @@ jobs:
     permissions:
       packages: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Deploy to Local Docker Compose
         run: |
+          # Create deployment directory if it doesn't exist
+          mkdir -p /home/ubuntu/sigmabuilder/site
+          
+          # Copy docker-compose.yml to the deployment folder
+          cp docker-compose.yml /home/ubuntu/sigmabuilder/site/
+          
           # Authenticate Docker daemon on EC2 to GitHub Packages using workflow GITHUB_TOKEN
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
           # Navigate to deployment directory, pull the latest public site image, and update container
-          cd /home/ubuntu/sigmabuilder
-          docker compose pull site
-          docker compose up -d --remove-orphans site
+          cd /home/ubuntu/sigmabuilder/site
+          docker compose pull
+          docker compose up -d --remove-orphans
+
 
 
